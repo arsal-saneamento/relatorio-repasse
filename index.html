@@ -532,8 +532,6 @@ function togJust(sel,id){
   const jf=$('jf_'+id);if(!jf)return;
   sel.value==='Justificada'?jf.classList.add('on'):jf.classList.remove('on');
 }
-function getNCs(){return Array.from($('grpList').querySelectorAll('.nc'));}
-function getGrps(){return Array.from($('grpList').querySelectorAll('.grp'));}
 
 function updBadges(){
   const bs=getNCs(),t=bs.length;
@@ -757,7 +755,7 @@ async function exportPDF(){
 
     /* table summary – alle NCs across all groups */
     const allNCs=[];
-    data.grupos.forEach(g=>g.ncs.forEach(nc=>allNCs.push({...nc,local:g.local||''})));
+    data.grupos.forEach(g=>(g.ncs||[]).forEach(nc=>allNCs.push({...nc,local:g.local||''})));
 
     if(allNCs.length){
       /* columns: NC | Local | Descrição | Status */
@@ -795,7 +793,7 @@ async function exportPDF(){
     /* NC details – grouped by local, images async-preloaded */
     const allImgUrls=[];
     data.grupos.forEach(g=>{
-      g.ncs.forEach(nc=>{
+      (g.ncs||[]).forEach(nc=>{
         ['_1','_2','_3','_4'].forEach(s=>{if(nc['img'+s])allImgUrls.push(nc['img'+s]);});
       });
     });
@@ -808,7 +806,8 @@ async function exportPDF(){
     })));
 
     data.grupos.forEach((grp)=>{
-      if(!grp.ncs||!grp.ncs.length)return;
+      const grpNcs=grp.ncs||[];
+      if(!grpNcs.length)return;
 
       /* Local header – underlined bold blue */
       if(grp.local&&grp.local.trim()){
@@ -817,7 +816,7 @@ async function exportPDF(){
         y+=3;
       }
 
-      grp.ncs.forEach((nc)=>{
+      grpNcs.forEach((nc)=>{
         const ncLabel='NC '+(nc.num||'?')+' \u2013 '+(nc.desc||'Sem descri\u00e7\u00e3o');
         checkY(22);F('helvetica','bold',11);COL(...C.text);
         doc.text(ncLabel,ML,y);
@@ -929,7 +928,8 @@ async function exportPDF(){
 }
 
 function genFatos(data){
-  const n=data.ncs.length;
+  const grupos=data.grupos||[];
+  const n=grupos.reduce((a,g)=>a+(g.ncs?g.ncs.length:0),0);
   const nw=['zero','uma','duas','tr\u00eas','quatro','cinco','seis','sete','oito','nove','dez','onze','doze'];
   const cs=n>0?n+' ('+(nw[n]||n)+')':'\u2014';
   const vst=n!==1?'foram vistoriadas '+cs+' n\u00e3o conformidades (NCs)':'foi vistoriada '+cs+' n\u00e3o conformidade (NC)';
