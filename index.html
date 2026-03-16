@@ -593,9 +593,12 @@ function collect(){
 
 function saveAll(){try{localStorage.setItem(SK,JSON.stringify(collect()));}catch(e){toast('Aviso: n\u00e3o foi poss\u00edvel salvar.');}}
 function loadAll(){
+  /* clear previous version's key to avoid stale format */
+  try{localStorage.removeItem('arsal_repasse_v5');}catch(e){}
   let raw;try{raw=localStorage.getItem(SK);}catch(e){return;}
   if(!raw)return;
   let d;try{d=JSON.parse(raw);}catch(e){return;}
+  if(!d||typeof d!=='object')return;
   ['concessionaria','municipio','tnsan','sei','fatos','obs_finais'].forEach(f=>{
     if(d[f]!==undefined){$(f).value=d[f];if(d[f])$(f).classList.add('filled');}
   });
@@ -624,6 +627,7 @@ function clearForm(){
 /* ── PDF ─────────────────────────────────────────────── */
 async function exportPDF(){
   const data=collect();
+  if(!data.grupos)data.grupos=[];
   $('loader').classList.add('on');
   await new Promise(r=>setTimeout(r,80));
   try{
@@ -787,12 +791,6 @@ async function exportPDF(){
 
     /* page break after table, before NC details */
     newPage();
-
-    /* local header */
-    if(data.local){
-      checkY(14);F('helvetica','bold',11);COL(...C.blue);
-      doc.splitTextToSize(data.local,CW).forEach(l=>{doc.text(l,ML,y);y+=LH;});y+=3;
-    }
 
     /* NC details – grouped by local, images async-preloaded */
     const allImgUrls=[];
