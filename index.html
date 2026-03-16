@@ -607,7 +607,7 @@ async function exportPDF(){
     function para(txt,indent){
       if(indent===undefined)indent=0;
       const x0=ML+indent,w=CW-indent;
-      /* build italic segments for "in loco" */
+      /* Build segments: locate every "in loco" occurrence (case-insensitive) */
       const segs=[];
       const lower=txt.toLowerCase();
       let pos=0;
@@ -618,31 +618,37 @@ async function exportPDF(){
         segs.push({t:txt.slice(fi,fi+7),it:true});
         pos=fi+7;
       }
+      /* plain string for line-splitting (preserves spaces for accurate offsets) */
       const plain=segs.map(s=>s.t).join('');
       const lines=doc.splitTextToSize(plain,w);
+      /* charOff tracks byte position in plain for each rendered line */
       let charOff=0;
       lines.forEach((line,li)=>{
         checkY(LH);
         const isLast=li===lines.length-1;
         const words=line.split(' ').filter(w2=>w2!=='');
         if(!words.length){y+=LH;charOff+=line.length+1;return;}
-        /* calculate total width using normal font for spacing */
         F('helvetica','normal',11);
         const totalTW=words.reduce((a,ww)=>a+doc.getTextWidth(ww),0);
         const gap=isLast||words.length<=1?doc.getTextWidth(' '):(w-totalTW)/(words.length-1);
-        let cx=x0,lOff=charOff;
+        let cx=x0;
+        /* Find offset of first actual word in this line within plain.
+           We search from charOff so we skip any leading spaces correctly. */
+        let searchFrom=charOff;
         words.forEach(ww=>{
-          /* determine italic: find which segment this word offset falls in */
+          /* locate this exact word starting from searchFrom */
+          const wPos=plain.indexOf(ww,searchFrom);
+          /* determine which segment wPos falls in */
           let italic=false,acc=0;
           for(const sg of segs){
-            if(lOff>=acc&&lOff<acc+sg.t.length){italic=sg.it;break;}
+            if(wPos>=acc&&wPos<acc+sg.t.length){italic=sg.it;break;}
             acc+=sg.t.length;
           }
           F('helvetica',italic?'italic':'normal',11);COL(...C.text);
           doc.text(ww,cx,y);
           F('helvetica','normal',11);
           cx+=doc.getTextWidth(ww)+gap;
-          lOff+=ww.length+1;
+          searchFrom=wPos+ww.length; /* advance past this word */
         });
         y+=LH;charOff+=line.length+1;
       });
@@ -726,12 +732,12 @@ async function exportPDF(){
     }
 
     /* NC details – images preloaded async for correct dimensions */
-    const allImgData=[];
+    const allImgUrls=[];
     data.ncs.forEach(nc=>{
-      ['_1','_2','_3','_4'].forEach(s=>{if(nc['img'+s])allImgData.push(nc['img'+s]);});
+      ['_1','_2','_3','_4'].forEach(s=>{if(nc['img'+s])allImgUrls.push(nc['img'+s]);});
     });
     const dimCache=new Map();
-    await Promise.all(allImgData.map(src=>new Promise(res=>{
+    await Promise.all(allImgUrls.map(src=>new Promise(res=>{
       const im=new Image();
       im.onload=()=>{dimCache.set(src,{w:im.naturalWidth,h:im.naturalHeight});res();};
       im.onerror=()=>res();
@@ -739,17 +745,17 @@ async function exportPDF(){
     })));
 
     data.ncs.forEach((nc,i)=>{
-      const ncLabel='NC '+(nc.num||String(i+1).padStart(2,'0'))+' \u2013 '+(nc.desc||'Sem descri\u00e7\u00e3o');
+      const ncLabel='NC '+(nc.num||String(i+1).padStart(2,'0'))+' – '+(nc.desc||'Sem descrição');
       checkY(22);F('helvetica','bold',11);COL(...C.text);
       doc.text(ncLabel,ML,y);
       STR(...C.border);LW(0.3);doc.line(ML,y+2,PW-MR,y+2);y+=9;
 
       if(nc.st==='Sanada'){
-        para('    Durante vistoria in loco, foi constatada a corre\u00e7\u00e3o da n\u00e3o conformidade, conforme figuras apresentadas.');
+        para('    Durante vistoria in loco, foi constatada a correção da não conformidade, conforme figuras apresentadas.');
       }else if(nc.st==='Pendente'){
-        para('    Durante vistoria in loco, foi constatada a manuten\u00e7\u00e3o das n\u00e3o conformidades, conforme figuras apresentadas.');
+        para('    Durante vistoria in loco, foi constatada a manutenção das não conformidades, conforme figuras apresentadas.');
       }else if(nc.st==='Justificada'){
-        para('    Esta n\u00e3o conformidade foi desconsiderada mediante justificativa.');
+        para('    Esta não conformidade foi desconsiderada mediante justificativa.');
         if(nc.just&&nc.just.trim()){
           y+=2;checkY(LH);F('helvetica','bold',10);COL(...C.darkgray);
           doc.text('Justificativa:',ML,y);y+=LH;
@@ -762,36 +768,34 @@ async function exportPDF(){
 
       ['_1','_2','_3','_4'].forEach((s,ki)=>{
         const imgData=nc['img'+s];if(!imgData)return;
-        const cap=nc['cap'+s]||('Figura '+(nc.num||String(i+1).padStart(2,'0'))+' \u2013 '+(nc.desc||''));
+        const cap=nc['cap'+s]||('Figura '+(nc.num||String(i+1).padStart(2,'0'))+' – '+(nc.desc||''));
 
-        /* use preloaded dimensions to preserve aspect ratio exactly */
+        /* real aspect ratio from preloaded dimensions */
         const dim=dimCache.get(imgData);
-        const MAX_W=CW*0.82;
-        const MAX_H=120;
+        const MAX_W=CW*0.82,MAX_H=120;
         let imgW=MAX_W,imgH=MAX_W*0.75;
         if(dim&&dim.w>0&&dim.h>0){
           const ratio=dim.h/dim.w;
-          imgW=MAX_W;
-          imgH=imgW*ratio;
-          /* if too tall, scale down by height */
+          imgW=MAX_W;imgH=imgW*ratio;
           if(imgH>MAX_H){imgH=MAX_H;imgW=imgH/ratio;}
         }
         const imgX=ML+(CW-imgW)/2;
 
-        /* caption + image must fit together; break page if needed */
-        const capH=LH+2;
-        if(y+capH+imgH+12>PH-FTR-4){newPage();}
+        /* break page if caption+image do not fit */
+        if(y+LH+imgH+14>PH-FTR-4){newPage();}
 
-        /* caption label — no extra blank line after it */
+        /* caption: render text, advance exactly one line height */
         F('helvetica','bold',9);COL(...C.muted);
-        doc.text(cap,PW/2,y,{align:'center'});y+=capH;
+        doc.text(cap,PW/2,y,{align:'center'});
+        y+=LH; /* exactly one line — no extra blank line */
 
         try{doc.addImage(imgData,'JPEG',imgX,y,imgW,imgH);}
         catch(e){try{doc.addImage(imgData,'PNG',imgX,y,imgW,imgH);}catch(e2){}}
-        y+=imgH+2;
+        y+=imgH+5; /* 5mm gap between image bottom and "Fonte" */
+
         F('helvetica','italic',8.5);COL(...C.muted);
         doc.text('Fonte: Arsal, '+new Date().getFullYear()+'.',PW/2,y,{align:'center'});
-        y+=9;
+        y+=8;
       });
     });
 
