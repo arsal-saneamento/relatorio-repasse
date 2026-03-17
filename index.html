@@ -274,11 +274,16 @@ textarea{resize:vertical;min-height:70px;}
       <div class="g2">
         <div class="fg">
           <label class="lbl">Termo de Notificação de Saneamento</label>
-          <input type="text" id="tnsan" placeholder="Ex.: TNSAN Nº 27/2023" oninput="sched();filled(this)">
+          <div style="position:relative;">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.87rem;color:var(--muted);pointer-events:none;user-select:none;" id="tnsan_prefix">TNSAN Nº </span>
+            <input type="text" id="tnsan" placeholder="27/2023" oninput="fmtTnsan(this)" style="padding-left:88px;">
+          </div>
+          <span style="font-size:.68rem;color:var(--muted);margin-top:3px;display:block;">Digite apenas o número, ex: <b>27/2023</b></span>
         </div>
         <div class="fg">
           <label class="lbl">Processo SEI Administrativo</label>
-          <input type="text" id="sei" placeholder="Ex.: E:49070.0000002266/2023" oninput="sched();filled(this)">
+          <input type="text" id="sei" placeholder="E:49070.0000002266/2023" oninput="fmtSei(this)" maxlength="28">
+          <span style="font-size:.68rem;color:var(--muted);margin-top:3px;display:block;">Formato: <b>E:49070.0000002266/2023</b></span>
         </div>
       </div>
       <div class="g2">
@@ -615,9 +620,11 @@ function loadAll(){
   if(!raw)return;
   let d;try{d=JSON.parse(raw);}catch(e){return;}
   if(!d||typeof d!=='object')return;
-  ['concessionaria','municipio','tnsan','sei','fatos','obs_finais'].forEach(f=>{
+  ['concessionaria','municipio','fatos','obs_finais'].forEach(f=>{
     if(d[f]!==undefined){$(f).value=d[f];if(d[f])$(f).classList.add('filled');}
   });
+  if(d.tnsan!==undefined){$('tnsan').value=d.tnsan;if(d.tnsan){fmtTnsan($('tnsan'));$('tnsan').classList.add('filled');}}
+  if(d.sei!==undefined){$('sei').value=d.sei;if(d.sei){fmtSei($('sei'));}}
   if(d.data_inspecao)$('data_inspecao').value=d.data_inspecao;
   if(d.srv1!==undefined&&d.srv1!==''){$('srv1').value=d.srv1;updPrev(1);}
   if(d.srv2!==undefined&&d.srv2!==''){$('srv2').value=d.srv2;updPrev(2);}
@@ -635,12 +642,75 @@ function clearForm(){
   if(!confirm('Limpar todos os dados?'))return;
   try{localStorage.removeItem(SK);}catch(e){}
   $('grpList').innerHTML='';ncN=0;grpN=0;
-  ['concessionaria','municipio','tnsan','sei','fatos','obs_finais'].forEach(f=>{$(f).value='';$(f).classList.remove('filled');});
+  ['concessionaria','municipio','fatos','obs_finais'].forEach(f=>{$(f).value='';$(f).classList.remove('filled');});
   $('data_inspecao').value='';$('srv1').value='';$('srv2').value='';
   $('prev1').style.display='none';$('prev2').style.display='none';$('gerente').value='';$('prev3').style.display='none';
   updConcl();toast('Formul\u00e1rio limpo.');
 }
 
+
+/* ── Field formatting ────────────────────────────────── */
+function fmtTnsan(el){
+  /* Strip any "TNSAN Nº" prefix the user may have typed */
+  let v=el.value.replace(/^TNSAN\s*N[ºo°]?\s*/i,'');
+  /* Keep only digits and slashes */
+  v=v.replace(/[^0-9\/]/g,'');
+  /* Enforce single slash: number/year */
+  if(v.includes('/')){
+    const firstSlash=v.indexOf('/');
+    const num=v.slice(0,firstSlash);
+    /* Collect all digits after first slash */
+    const afterDigits=v.slice(firstSlash+1).replace(/[^0-9]/g,'');
+    /* If user typed multiple slashes (e.g. 1/2/2023), take last 4 digits as year.
+       If still typing (≤4 digits), keep as-is to allow normal input flow. */
+    const yrDigits=afterDigits.length>4?afterDigits.slice(-4):afterDigits;
+    v=num+'/'+yrDigits; /* keep trailing slash so user can type the year */
+  }
+  el.value=v;
+  filled(el);
+  const pfx=$('tnsan_prefix');
+  if(pfx)pfx.style.opacity=v?'1':'0.4';
+  sched();
+}
+
+function fmtSei(el){
+  /* Auto-format: E:NNNNN.NNNNNNNNNN/NNNN */
+  /* Remove the E: prefix if typed */
+  let raw=el.value.replace(/^E:/i,'');
+  /* Get only digits */
+  let digits=raw.replace(/[^0-9]/g,'');
+  /* Build formatted: NNNNN.NNNNNNNNNN/NNNN (5 + 10 + 4 = 19 digits) */
+  let fmt='E:';
+  if(digits.length>0) fmt+=digits.slice(0,5);
+  if(digits.length>5) fmt+='.'+digits.slice(5,15);
+  if(digits.length>15) fmt+='/'+digits.slice(15,19);
+  el.value=fmt==='E:'?'':fmt;
+  /* Validate: show red border if incomplete but not empty */
+  const digits_in=digits.length;
+  if(digits_in>0&&digits_in<19){
+    el.classList.remove('filled');
+    el.style.borderColor='#FCA5A5';
+    el.style.background='#FFF5F5';
+  } else if(digits_in===19){
+    el.classList.add('filled');
+    el.style.borderColor='';
+    el.style.background='';
+  } else {
+    el.classList.remove('filled');
+    el.style.borderColor='';
+    el.style.background='';
+  }
+  sched();
+}
+
+/* Return clean display value for TNSAN (with prefix) */
+function tnsanDisplay(){
+  const v=($('tnsan').value||'').trim();
+  if(!v)return '';
+  /* If user already typed the full prefix, return as-is */
+  if(/^TNSAN/i.test(v))return v;
+  return 'TNSAN N\u00ba '+v;
+}
 
 /* ── PDF ─────────────────────────────────────────────── */
 async function exportPDF(){
@@ -967,7 +1037,8 @@ function genFatos(data){
   const nw=['zero','uma','duas','tr\u00eas','quatro','cinco','seis','sete','oito','nove','dez','onze','doze'];
   const cs=n>0?n+' ('+(nw[n]||n)+')':'\u2014';
   const vst=n!==1?'foram vistoriadas '+cs+' n\u00e3o conformidades (NCs)':'foi vistoriada '+cs+' n\u00e3o conformidade (NC)';
-  const notif=data.tnsan?' com base no '+data.tnsan:'';
+  const tnsanFmt=data.tnsan?((/^TNSAN/i.test(data.tnsan.trim()))?data.tnsan.trim():'TNSAN Nº '+data.tnsan.trim()):'';
+  const notif=tnsanFmt?' com base no '+tnsanFmt:'';
   let txt='Trata-se do processo SEI n\u00ba '+(data.sei||'[Processo SEI]')+
     ', instaurado com o objetivo de apresentar o Relat\u00f3rio de Fiscaliza\u00e7\u00e3o do Sistema de Abastecimento de \u00c1gua (SAA) do munic\u00edpio de '+
     (data.municipio||'[Munic\u00edpio]')+'/AL, operado pela prestadora '+
