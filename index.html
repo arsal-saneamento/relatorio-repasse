@@ -344,6 +344,14 @@ textarea{resize:vertical;min-height:70px;}
           </div>
         </div>
       </div>
+      <div class="fg" style="margin-top:14px;border-top:1.5px solid var(--border);padding-top:14px;">
+        <label class="lbl">Gerente <span style="text-transform:none;font-weight:400;font-size:.68rem;color:var(--muted);">(assina abaixo dos servidores)</span></label>
+        <select id="gerente" onchange="updPrev(3);sched()"><option value="">Selecione…</option></select>
+        <div class="sp" id="prev3" style="display:none">
+          <img id="sig3" src="" alt="">
+          <div><div class="sn" id="sn3"></div><div class="sc">Gerente</div></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="actions">
@@ -370,11 +378,11 @@ const SERVIDORES = [
 
 const SK='arsal_repasse_v6';
 const $=id=>document.getElementById(id);
-let _t=null,ncN=0,grpN=0;
+let _t=null,ncN=0,grpN=0,_loading=false;
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function setSave(s){const p=$('savePill'),t=$('saveText');p.className='save-pill '+s;t.textContent=s==='saving'?'Salvando\u2026':s==='saved'?'Salvo automaticamente':'Pronto';}
-function sched(){setSave('saving');clearTimeout(_t);_t=setTimeout(()=>{saveAll();setSave('saved');},900);}
+function sched(){if(_loading)return;setSave('saving');clearTimeout(_t);_t=setTimeout(()=>{saveAll();setSave('saved');},900);}
 function filled(el){el.classList.toggle('filled',!!el.value);}
 
 function populateSrv(){
@@ -382,9 +390,17 @@ function populateSrv(){
     const s=$(id);
     SERVIDORES.forEach((sv,i)=>{const o=document.createElement('option');o.value=i;o.textContent=sv.name;s.appendChild(o);});
   });
+  /* gerente: apenas Jonathan Feijó */
+  const gSel=$('gerente');
+  SERVIDORES.forEach((sv,i)=>{
+    if(sv.name.toLowerCase().includes('jonathan')){
+      const o=document.createElement('option');o.value=i;o.textContent=sv.name;gSel.appendChild(o);
+    }
+  });
 }
 function updPrev(n){
-  const sel=$('srv'+n),idx=parseInt(sel.value),prev=$('prev'+n);
+  const selId = n===3 ? 'gerente' : 'srv'+n;
+  const sel=$(selId),idx=parseInt(sel.value),prev=$('prev'+n);
   if(isNaN(idx)||sel.value===''){prev.style.display='none';return;}
   const sv=SERVIDORES[idx];
   $('sig'+n).src=sv.sig;$('sn'+n).textContent=sv.name;prev.style.display='flex';
@@ -455,7 +471,7 @@ function addNC(data,gid){
             '<option value="">Selecione\u2026</option>'+
             '<option value="Sanada">\u2705 Sanada</option>'+
             '<option value="Pendente">\u26a0\ufe0f Pendente</option>'+
-            '<option value="Justificada">\u25cf NC Justificada</option>'+
+            '<option value="Justificada">\u2139\uFE0F NC Justificada</option>'+
           '</select>'+
         '</div>'+
       '</div>'+
@@ -564,7 +580,7 @@ function collect(){
     tnsan:$('tnsan').value,sei:$('sei').value,
     data_inspecao:$('data_inspecao').value,
     fatos:$('fatos').value,obs_finais:$('obs_finais').value,
-    srv1:$('srv1').value,srv2:$('srv2').value,grupos:[]
+    srv1:$('srv1').value,srv2:$('srv2').value,gerente:$('gerente').value,grupos:[]
   };
   getGrps().forEach(grpEl=>{
     const grp={local:grpEl.querySelector('.grp-local').value,ncs:[]};
@@ -591,6 +607,8 @@ function collect(){
 
 function saveAll(){try{localStorage.setItem(SK,JSON.stringify(collect()));}catch(e){toast('Aviso: n\u00e3o foi poss\u00edvel salvar.');}}
 function loadAll(){
+  ncN=0;grpN=0; /* reset counters before restoring */
+  _loading=true; /* suppress auto-save during restore */
   /* clear previous version's key to avoid stale format */
   try{localStorage.removeItem('arsal_repasse_v5');}catch(e){}
   let raw;try{raw=localStorage.getItem(SK);}catch(e){return;}
@@ -603,6 +621,7 @@ function loadAll(){
   if(d.data_inspecao)$('data_inspecao').value=d.data_inspecao;
   if(d.srv1!==undefined&&d.srv1!==''){$('srv1').value=d.srv1;updPrev(1);}
   if(d.srv2!==undefined&&d.srv2!==''){$('srv2').value=d.srv2;updPrev(2);}
+  if(d.gerente!==undefined&&d.gerente!==''){$('gerente').value=d.gerente;updPrev(3);}
   /* support old format with flat ncs array */
   if(d.grupos&&Array.isArray(d.grupos)){
     d.grupos.forEach(g=>addGrp(g));
@@ -610,6 +629,7 @@ function loadAll(){
     addGrp({local:d.local||'',ncs:d.ncs});
   }
   updConcl();
+  _loading=false;
 }
 function clearForm(){
   if(!confirm('Limpar todos os dados?'))return;
@@ -617,7 +637,7 @@ function clearForm(){
   $('grpList').innerHTML='';ncN=0;grpN=0;
   ['concessionaria','municipio','tnsan','sei','fatos','obs_finais'].forEach(f=>{$(f).value='';$(f).classList.remove('filled');});
   $('data_inspecao').value='';$('srv1').value='';$('srv2').value='';
-  $('prev1').style.display='none';$('prev2').style.display='none';
+  $('prev1').style.display='none';$('prev2').style.display='none';$('gerente').value='';$('prev3').style.display='none';
   updConcl();toast('Formul\u00e1rio limpo.');
 }
 
@@ -693,7 +713,7 @@ async function exportPDF(){
         if(!words.length){y+=LH;charOff+=line.length+1;return;}
         F('helvetica','normal',11);
         const totalTW=words.reduce((a,ww)=>a+doc.getTextWidth(ww),0);
-        const gap=isLast||words.length<=1?doc.getTextWidth(' '):(w-totalTW)/(words.length-1);
+        const gap=isLast||words.length<=1?doc.getTextWidth(' '):Math.max(0,(w-totalTW)/(words.length-1));
         let cx=x0,searchFrom=charOff;
         words.forEach(ww=>{
           const wPos=plain.indexOf(ww,searchFrom);
@@ -716,9 +736,10 @@ async function exportPDF(){
       checkY(LH+1);
       F('helvetica','bold',11);COL(...C.text);
       const lw2=doc.getTextWidth(label+': ');
+      const valW=Math.max(CW-lw2,60); /* min 60mm for value to prevent overflow */
       doc.text(label+': ',ML,y);
       F('helvetica','normal',11);
-      const vl=doc.splitTextToSize(value||'\u2014',CW-lw2);
+      const vl=doc.splitTextToSize(value||'\u2014',valW);
       doc.text(vl[0],ML+lw2,y);y+=LH;
       for(let i=1;i<vl.length;i++){checkY(LH);doc.text(vl[i],ML+lw2,y);y+=LH;}
     }
@@ -760,7 +781,8 @@ async function exportPDF(){
     if(allNCs.length){
       /* columns: NC | Local | Descrição | Status */
       const cw=[14,50,CW-14-50-28,28],rh=8;
-      checkY(rh*(allNCs.length+2)+4);
+      /* keep at least header + 3 rows together, rows break naturally */
+      checkY(rh*Math.min(allNCs.length+1,4)+4);
       FILL(...C.blue);doc.rect(ML,y,CW,rh,'F');
       STR(...C.blue);LW(0.3);doc.rect(ML,y,CW,rh,'S');
       F('helvetica','bold',9);COL(255,255,255);
@@ -776,7 +798,7 @@ async function exportPDF(){
         F('helvetica','bold',9);COL(...C.blue);
         doc.text(nc.num||String(i+1).padStart(2,'0'),ML+cw[0]/2,y+5.2,{align:'center'});
         F('helvetica','normal',8);COL(...C.text);
-        doc.text((doc.splitTextToSize(nc.local,cw[1]-3)[0]||''),ML+cw[0]+2,y+5.2);
+        const localTxt=(nc.local||'').trim();doc.text(localTxt?(doc.splitTextToSize(localTxt,cw[1]-3)[0]||''):'',ML+cw[0]+2,y+5.2);
         doc.text((doc.splitTextToSize(nc.desc||'\u2014',cw[2]-4)[0]||'\u2014'),ML+cw[0]+cw[1]+2,y+5.2);
         const stC=nc.st==='Sanada'?C.ok:nc.st==='Pendente'?C.warn:nc.st==='Justificada'?C.darkgray:C.muted;
         COL(...stC);F('helvetica','bold',8);
@@ -857,8 +879,8 @@ async function exportPDF(){
           F('helvetica','bold',9);COL(...C.muted);
           doc.text(cap,PW/2,y,{align:'center'});
           y+=LH*0.34; /* reduzido 66% do espaço após legenda */
-          try{doc.addImage(imgData,'JPEG',imgX,y,imgW,imgH);}
-          catch(e){try{doc.addImage(imgData,'PNG',imgX,y,imgW,imgH);}catch(e2){}}
+          const imgFmt=imgData.startsWith('data:image/png')?'PNG':imgData.startsWith('data:image/gif')?'GIF':'JPEG';
+          try{doc.addImage(imgData,imgFmt,imgX,y,imgW,imgH);}catch(e){console.warn('Image add failed:',e);}
           y+=imgH+5;
           F('helvetica','italic',8.5);COL(...C.muted);
           doc.text('Fonte: Arsal, '+new Date().getFullYear()+'.',PW/2,y,{align:'center'});
@@ -890,18 +912,22 @@ async function exportPDF(){
       '_____ de ______________ de ______';
     checkY(8);F('helvetica','normal',11);COL(...C.text);
     doc.text('Macei\u00f3 \u2013 AL, '+dtFmt+'.',PW-MR,y,{align:'right'});
-    y+=22;
+    y+=32;
 
-    /* signatures – centered on page */
-    checkY(45);
-    const s1i=parseInt(data.srv1),s2i=parseInt(data.srv2);
+    /* signatures */
+    const s1i=parseInt(data.srv1),s2i=parseInt(data.srv2),s3i=parseInt(data.gerente);
     const s1=(!isNaN(s1i)&&data.srv1!=='')?SERVIDORES[s1i]:null;
     const s2=(!isNaN(s2i)&&data.srv2!=='')?SERVIDORES[s2i]:null;
-    /* place signatures at 1/4 and 3/4 of page width */
-    const col1=PW*0.25,col2=PW*0.75;
-    const sigW=60,sigH=20,lnW=65,yBase=y;
+    const s3=(!isNaN(s3i)&&data.gerente!=='')?SERVIDORES[s3i]:null;
 
-    function drawSig(sv,cx){
+    /* Row 1: two servers, closer together (1/3 and 2/3 of page) */
+    const col1=PW*0.28,col2=PW*0.72;
+    const sigW=55,sigH=18,lnW=60;
+
+    checkY(sigH+20); /* trigger page break BEFORE computing yRow1 */
+    const yRow1=y+sigH+2; /* baseline computed after potential page break */
+
+    function drawSigAt(sv,cx,yBase,role){
       if(sv&&sv.sig){
         const fmt=sv.sig.startsWith('data:image/png')?'PNG':'JPEG';
         try{doc.addImage(sv.sig,fmt,cx-sigW/2,yBase-sigH-2,sigW,sigH);}catch(e){}
@@ -910,11 +936,16 @@ async function exportPDF(){
       F('helvetica','bold',10);COL(...C.text);
       doc.text(sv?sv.name:'_________________________',cx,yBase+5,{align:'center'});
       F('helvetica','normal',9);COL(...C.muted);
-      doc.text('Servidor',cx,yBase+10,{align:'center'});
+      doc.text(role,cx,yBase+10,{align:'center'});
     }
-    drawSig(s1,col1);
-    drawSig(s2,col2);
 
+    drawSigAt(s1,col1,yRow1,'Servidor');
+    drawSigAt(s2,col2,yRow1,'Servidor');
+
+    /* Row 2: gerente, centered, below row 1 */
+    const yRow2=yRow1+sigH+18;
+    /* ensure gerente fits on same page */
+    if(yRow2+sigH+12>PH-FTR-4){newPage();const yRow2b=y+sigH+2;drawSigAt(s3,PW/2,yRow2b,'Gerente');}else{drawSigAt(s3,PW/2,yRow2,'Gerente');}
     /* finalize */
     const total=doc.internal.getNumberOfPages();
     for(let i=1;i<=total;i++){
