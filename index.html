@@ -655,7 +655,7 @@ async function exportPDF(){
       STR(...C.blue);LW(0.7);doc.line(ML,HDR-0.5,PW-MR,HDR-0.5);
       const arsalH=15,arsalW=+(arsalH*2.817).toFixed(1);
       try{doc.addImage(IMG_ARSAL,'PNG',ML,HDR/2-arsalH/2,arsalW,arsalH);}catch(e){}
-      const govH=11,govW=+(govH*2.953).toFixed(1);
+      const govH=15,govW=+(govH*2.953).toFixed(1);
       try{doc.addImage(IMG_ALAGOAS,'PNG',PW-MR-govW,HDR/2-govH/2,govW,govH);}catch(e){}
     }
 
@@ -805,6 +805,7 @@ async function exportPDF(){
       im.src=src;
     })));
 
+    let figCount=0; /* global figure counter across all NCs */
     data.grupos.forEach((grp)=>{
       const grpNcs=grp.ncs||[];
       if(!grpNcs.length)return;
@@ -840,7 +841,9 @@ async function exportPDF(){
 
         ['_1','_2','_3','_4'].forEach((s)=>{
           const imgData=nc['img'+s];if(!imgData)return;
-          const cap=nc['cap'+s]||('Figura '+(nc.num||'?')+' \u2013 '+(nc.desc||''));
+          figCount++;
+          const userCap=nc['cap'+s];
+          const cap=userCap&&userCap.trim()?userCap:('Figura '+figCount+' \u2013 '+(nc.desc||''));
           const dim=dimCache.get(imgData);
           const MAX_W=CW*0.82,MAX_H=120;
           let imgW=MAX_W,imgH=MAX_W*0.75;
@@ -853,7 +856,7 @@ async function exportPDF(){
           if(y+LH+imgH+14>PH-FTR-4){newPage();}
           F('helvetica','bold',9);COL(...C.muted);
           doc.text(cap,PW/2,y,{align:'center'});
-          y+=LH;
+          y+=LH*0.34; /* reduzido 66% do espaço após legenda */
           try{doc.addImage(imgData,'JPEG',imgX,y,imgW,imgH);}
           catch(e){try{doc.addImage(imgData,'PNG',imgX,y,imgW,imgH);}catch(e2){}}
           y+=imgH+5;
