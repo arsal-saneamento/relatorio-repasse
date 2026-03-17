@@ -1034,10 +1034,33 @@ async function exportPDF(){
 function genFatos(data){
   const grupos=data.grupos||[];
   const n=grupos.reduce((a,g)=>a+(g.ncs?g.ncs.length:0),0);
-  const nw=['zero','uma','duas','tr\u00eas','quatro','cinco','seis','sete','oito','nove','dez','onze','doze'];
-  const cs=n>0?n+' ('+(nw[n]||n)+')':'\u2014';
+
+  /* Número por extenso em português, feminino (não conformidades), 0–500 */
+  function numExtenso(num){
+    if(num===0)return 'zero';
+    const u=['','uma','duas','tr\u00eas','quatro','cinco','seis','sete','oito','nove',
+             'dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+    const d=['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+    const c=['','cento','duzentas','trezentas','quatrocentas','quinhentas'];
+    /* Special cases */
+    if(num===100)return 'cem';
+    let r='';
+    const cent=Math.floor(num/100);
+    const rest=num%100;
+    if(cent>0)r+=c[cent];
+    if(cent>0&&rest>0)r+=' e ';
+    if(rest>0&&rest<20){r+=u[rest];}
+    else if(rest>=20){
+      r+=d[Math.floor(rest/10)];
+      if(rest%10>0)r+=' e '+u[rest%10];
+    }
+    return r;
+  }
+
+  const ext=numExtenso(n);
+  const cs=n>0?n+' ('+ext+')':'\u2014';
   const vst=n!==1?'foram vistoriadas '+cs+' n\u00e3o conformidades (NCs)':'foi vistoriada '+cs+' n\u00e3o conformidade (NC)';
-  const tnsanFmt=data.tnsan?((/^TNSAN/i.test(data.tnsan.trim()))?data.tnsan.trim():'TNSAN Nº '+data.tnsan.trim()):'';
+  const tnsanFmt=data.tnsan?((/^TNSAN/i.test(data.tnsan.trim()))?data.tnsan.trim():'TNSAN N\u00ba '+data.tnsan.trim()):'';
   const notif=tnsanFmt?' com base no '+tnsanFmt:'';
   let txt='Trata-se do processo SEI n\u00ba '+(data.sei||'[Processo SEI]')+
     ', instaurado com o objetivo de apresentar o Relat\u00f3rio de Fiscaliza\u00e7\u00e3o do Sistema de Abastecimento de \u00c1gua (SAA) do munic\u00edpio de '+
