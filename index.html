@@ -13,7 +13,7 @@
 :root{
   --bg:#0f172a; --panel:#ffffff; --panel-2:#f8fafc; --ink:#0f172a; --muted:#64748b;
   --line:#e2e8f0; --accent:#0ea5e9; --accent-d:#0369a1; --shadow:0 1px 3px rgba(15,23,42,.08),0 8px 24px rgba(15,23,42,.06);
-  --casal:#2563eb; --conasa:#0891b2; --brk:#f59e0b; --verde:#22c55e; --saae:#a855f7; --conama:#ec4899; --outros:#94a3b8;
+  --casal:#008cff; --conasa:#e6b000; --brk:#0bedf5; --verde:#22c55e; --saae:#a855f7; --outros:#94a3b8;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--panel-2);color:var(--ink);font-size:14px}
@@ -138,7 +138,7 @@ tbody tr:hover{background:#f1f5f9}
    ============================================================ */
 const LIVE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTrZdieVDnUZNbT6FQTNpooN316DwSG6p7h79pjWr8j2I9QwvBndzzVngXausNF53DuHoM5Fm4XaRmD/pub?gid=1395499672&single=true&output=csv";
 
-const COLORS = {CASAL:'#2563eb',CONASA:'#0891b2',BRK:'#f59e0b',VERDE:'#22c55e',SAAE:'#a855f7',CONAMA:'#ec4899'};
+const COLORS = {CASAL:'#00C0F3',CONASA:'#1F3B7B',BRK:'#3700FF',VERDE:'#007D6E',SAAE:'#a855f7'};
 const colorFor = p => COLORS[(p||'').toUpperCase()] || '#94a3b8';
 const MES_ORD = {JAN:1,FEV:2,MAR:3,ABR:4,MAI:5,JUN:6,JUL:7,AGO:8,SET:9,OUT:10,NOV:11,DEZ:12};
 const MES_LBL = ['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
