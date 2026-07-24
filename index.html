@@ -13,7 +13,7 @@
 :root{
   --bg:#0f172a; --panel:#ffffff; --panel-2:#f8fafc; --ink:#0f172a; --muted:#64748b;
   --line:#e2e8f0; --accent:#0ea5e9; --accent-d:#0369a1; --shadow:0 1px 3px rgba(15,23,42,.08),0 8px 24px rgba(15,23,42,.06);
-  --casal:#008cff; --conasa:#e6b000; --brk:#0bedf5; --verde:#22c55e; --saae:#a855f7; --outros:#94a3b8;
+  --casal:#2563eb; --conasa:#0891b2; --brk:#f59e0b; --verde:#22c55e; --saae:#a855f7; --conama:#ec4899; --outros:#94a3b8;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--panel-2);color:var(--ink);font-size:14px}
@@ -138,7 +138,7 @@ tbody tr:hover{background:#f1f5f9}
    ============================================================ */
 const LIVE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTrZdieVDnUZNbT6FQTNpooN316DwSG6p7h79pjWr8j2I9QwvBndzzVngXausNF53DuHoM5Fm4XaRmD/pub?gid=1395499672&single=true&output=csv";
 
-const COLORS = {CASAL:'#00C0F3',CONASA:'#1F3B7B',BRK:'#3700FF',VERDE:'#007D6E',SAAE:'#a855f7'};
+const COLORS = {CASAL:'#2563eb',CONASA:'#0891b2',BRK:'#f59e0b',VERDE:'#22c55e',SAAE:'#a855f7',CONAMA:'#ec4899'};
 const colorFor = p => COLORS[(p||'').toUpperCase()] || '#94a3b8';
 const MES_ORD = {JAN:1,FEV:2,MAR:3,ABR:4,MAI:5,JUN:6,JUL:7,AGO:8,SET:9,OUT:10,NOV:11,DEZ:12};
 const MES_LBL = ['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
@@ -261,14 +261,36 @@ function initMap(){
 function renderMap(data){
   markersLayer.clearLayers();
   let n=0;
+  // Agrupa relatórios que caem na MESMA coordenada (ex.: vários no mesmo município)
+  const groups={};
   data.forEach(r=>{
-    if(r.lat==null||r.lng==null) return; n++;
-    const m=L.circleMarker([r.lat,r.lng],{radius:6,fillColor:colorFor(r.prest),
+    if(r.lat==null||r.lng==null) return;
+    const key=r.lat.toFixed(5)+','+r.lng.toFixed(5);
+    (groups[key]||(groups[key]=[])).push(r);
+  });
+  Object.values(groups).forEach(grp=>{
+    grp.forEach((r,i)=>{
+    n++;
+    // Se houver mais de um ponto na mesma coordenada, espalha uniformemente
+    // num círculo deslocado para o LADO (leste) do nome do município, sem cobrir o rótulo.
+    let lat=r.lat, lng=r.lng;
+    if(grp.length>1){
+      const M=111320;                              // metros por grau
+      const cosLat=Math.cos(r.lat*Math.PI/180);
+      const R=350/M;                               // raio do espalhamento (~350 m)
+      const offX=600/M;                            // desloca o grupo ~600 m a leste do rótulo
+      const ang=2*Math.PI*Math.random();
+      const rad=R*Math.sqrt(Math.random());        // sqrt => densidade uniforme na área
+      lat+=rad*Math.cos(ang);
+      lng+=(offX+rad*Math.sin(ang))/cosLat;
+    }
+    const m=L.circleMarker([lat,lng],{radius:6,fillColor:colorFor(r.prest),
       color:'#fff',weight:1.5,fillOpacity:.9});
     const pdf=r.link?`<br><a href="${r.link}" target="_blank">📄 Abrir PDF</a>`:'';
     m.bindPopup(`<b>${r.mun}</b><br>${r.tipo} · ${r.escopo}<br>
       <span style="color:${colorFor(r.prest)};font-weight:700">${r.prest}</span> · ${r.mes}/${r.ano}${pdf}`);
     markersLayer.addLayer(m);
+    });
   });
   document.getElementById('mapCount').textContent='('+n+' pontos)';
   // legenda
